@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, '../')
+sys.path.insert(0, '/home/krishnan/Work/repos/DrNAS/code')
 import time
 import glob
 import numpy as np
@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser("sota")
 parser.add_argument('--data', type=str, default='datapath', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='cifar10', help='choose dataset')
 parser.add_argument('--method', type=str, default='dirichlet', help='choose nas method')
-parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -43,7 +43,7 @@ parser.add_argument('--init_channels', type=int, default=16, help='num of init c
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--cutout_prob', type=float, default=1.0, help='cutout probability')
-parser.add_argument('--save', type=str, default='exp', help='experiment name')
+parser.add_argument('--save', type=str, default='debug', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
