@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, '/home/krishnan/Work/repos/DrNAS/code/')
+sys.path.insert(0, '/work/dlclarge2/krishnan-tanglenas/DrNAS/')
 import time
 import glob
 import numpy as np
@@ -125,7 +125,7 @@ def main():
   epoch = 0
   ks = [6, 4]
   num_keeps = [7, 4]
-  train_epochs = [1] if 'debug' in args.save else [25, 25]
+  train_epochs = [1] if 'debug' in args.save else [5]
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer, float(sum(train_epochs)), eta_min=args.learning_rate_min)
 
