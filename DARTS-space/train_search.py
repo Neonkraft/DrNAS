@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, '../')
+sys.path.insert(0, '/home/krishnan/Work/repos/DrNAS/code/')
 import time
 import glob
 import numpy as np
@@ -12,6 +12,7 @@ import torch.utils
 import torch.nn.functional as F
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
+import cProfile
 
 from torch.autograd import Variable
 from net2wider import configure_optimizer, configure_scheduler
@@ -22,25 +23,25 @@ import utils as utils
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='datapath', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='cifar10', help='location of the data corpus')
-parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+parser.add_argument('--batch_size', type=int, default=8, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.0, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
-parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
-parser.add_argument('--layers', type=int, default=20, help='total number of layers')
+parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
+parser.add_argument('--layers', type=int, default=8, help='total number of layers')
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='exp', help='experiment name')
+parser.add_argument('--save', type=str, default='debug', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
-parser.add_argument('--k', type=int, default=6, help='init partial channel parameter')
+parser.add_argument('--k', type=int, default=1, help='init partial channel parameter')
 #### regularization
 parser.add_argument('--reg_type', type=str, default='l2', choices=['l2', 'kl'], help='regularization type')
 parser.add_argument('--reg_scale', type=float, default=1e-3, help='scaling factor of the regularization term, default value is proper for l2, for kl you might adjust reg_scale to match l2')
@@ -51,6 +52,8 @@ args.save = '../experiments/{}/search-progressive-{}-{}-{}'.format(
 args.save += '-init_channels-' + str(args.init_channels)
 args.save += '-layers-' + str(args.layers) 
 args.save += '-init_pc-' + str(args.k)
+print("%"*50)
+print("args.save: ", args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -103,6 +106,9 @@ def main():
   indices = list(range(num_train))
   split = int(np.floor(args.train_portion * num_train))
 
+  profiler = cProfile.Profile()
+  profiler.enable()
+
   train_queue = torch.utils.data.DataLoader(
     train_data, batch_size=args.batch_size,
     sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
@@ -119,7 +125,7 @@ def main():
   epoch = 0
   ks = [6, 4]
   num_keeps = [7, 4]
-  train_epochs = [2, 2] if 'debug' in args.save else [25, 25]
+  train_epochs = [1] if 'debug' in args.save else [25, 25]
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer, float(sum(train_epochs)), eta_min=args.learning_rate_min)
 
@@ -144,23 +150,27 @@ def main():
       scheduler.step()
       utils.save(model, os.path.join(args.save, 'weights.pt'))
     
-    if not i == len(train_epochs) - 1:
-      model.pruning(num_keeps[i+1])
-      # architect.pruning([model.mask_normal, model.mask_reduce])
-      model.wider(ks[i+1])
-      optimizer = configure_optimizer(optimizer, torch.optim.SGD(
-        model.parameters(),
-        args.learning_rate,
-        momentum=args.momentum,
-        weight_decay=args.weight_decay))
-      scheduler = configure_scheduler(scheduler, torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, float(sum(train_epochs)), eta_min=args.learning_rate_min))
-      logging.info('pruning finish, %d ops left per edge', num_keeps[i+1])
-      logging.info('network wider finish, current pc parameter %d', ks[i+1])
+    # if not i == len(train_epochs) - 1:
+    #   model.pruning(num_keeps[i+1])
+    #   # architect.pruning([model.mask_normal, model.mask_reduce])
+    #   model.wider(ks[i+1])
+    #   optimizer = configure_optimizer(optimizer, torch.optim.SGD(
+    #     model.parameters(),
+    #     args.learning_rate,
+    #     momentum=args.momentum,
+    #     weight_decay=args.weight_decay))
+    #   scheduler = configure_scheduler(scheduler, torch.optim.lr_scheduler.CosineAnnealingLR(
+    #     optimizer, float(sum(train_epochs)), eta_min=args.learning_rate_min))
+    #   logging.info('pruning finish, %d ops left per edge', num_keeps[i+1])
+    #   logging.info('network wider finish, current pc parameter %d', ks[i+1])
 
   genotype = model.genotype()
   logging.info('genotype = %s', genotype)
   model.show_arch_parameters()
+
+  profiler.disable()
+  profiler.dump_stats(os.path.join(args.save, 'original_drnas_profile.cprof'))
+  print()
 
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, epoch):
@@ -200,7 +210,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
     if step % args.report_freq == 0:
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
-    if 'debug' in args.save:
+    if 'debug' in args.save and step >= 50:
       break
 
   return top1.avg, objs.avg
@@ -228,7 +238,7 @@ def infer(valid_queue, model, criterion):
 
       if step % args.report_freq == 0:
         logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
-      if 'debug' in args.save:
+      if 'debug' in args.save and step >= 50:
         break
 
   return top1.avg, objs.avg
