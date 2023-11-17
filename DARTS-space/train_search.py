@@ -169,7 +169,8 @@ def main():
   model.show_arch_parameters()
 
   profiler.disable()
-  profiler.dump_stats(os.path.join(args.save, 'original_drnas_profile.cprof'))
+  profiler.dump_stats(os.path.join(args.save, f'original_drnas_profile_{args.seed}.cprof'))
+
   print()
 
 
