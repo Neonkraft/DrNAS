@@ -106,8 +106,8 @@ def main():
   indices = list(range(num_train))
   split = int(np.floor(args.train_portion * num_train))
 
-  profiler = cProfile.Profile()
-  profiler.enable()
+  # profiler = cProfile.Profile()
+  # profiler.enable()
 
   train_queue = torch.utils.data.DataLoader(
     train_data, batch_size=args.batch_size,
@@ -131,6 +131,8 @@ def main():
 
   for i, current_epochs in enumerate(train_epochs):
     for e in range(current_epochs):
+
+      start_time = time.time()
       lr = scheduler.get_lr()[0]
       logging.info('epoch %d lr %e', epoch, lr)
 
@@ -150,6 +152,8 @@ def main():
       scheduler.step()
       utils.save(model, os.path.join(args.save, 'weights.pt'))
     
+      end_time = time.time()
+      logging.info('epoch time: %d seconds', end_time - start_time)
     # if not i == len(train_epochs) - 1:
     #   model.pruning(num_keeps[i+1])
     #   # architect.pruning([model.mask_normal, model.mask_reduce])
@@ -168,8 +172,8 @@ def main():
   logging.info('genotype = %s', genotype)
   model.show_arch_parameters()
 
-  profiler.disable()
-  profiler.dump_stats(os.path.join(args.save, f'original_drnas_profile_{args.seed}.cprof'))
+  # profiler.disable()
+  # profiler.dump_stats(os.path.join(args.save, f'original_drnas_profile_{args.seed}.cprof'))
 
   print()
 
