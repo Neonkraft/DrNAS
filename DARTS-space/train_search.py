@@ -179,26 +179,52 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
   top1 = utils.AvgrageMeter()
   top5 = utils.AvgrageMeter()
 
+  timer_model_forward = utils.AvgrageMeter()
+  timer_model_backward  = utils.AvgrageMeter()
+  timer_xtrain_to_cuda = utils.AvgrageMeter()
+  timer_xval_to_cuda = utils.AvgrageMeter()
+  timer_val_loader = utils.AvgrageMeter()
+  timer_arch_step = utils.AvgrageMeter()
+
   for step, (input, target) in enumerate(train_queue):
     model.train()
     n = input.size(0)
+
+    start_time = time.time()
     input = input.cuda()
+    timer_xtrain_to_cuda.update(time.time() - start_time)
+  
     target = target.cuda(non_blocking=True)
 
     # get a random minibatch from the search queue with replacement
+    start_time = time.time()
     input_search, target_search = next(iter(valid_queue))
+    timer_val_loader.update(time.time() - start_time)
+
+    start_time = time.time()
     input_search = input_search.cuda()
+    timer_xval_to_cuda.update(time.time() - start_time)
+  
     target_search = target_search.cuda(non_blocking=True)
 
     # if epoch >= 10:
+    start_time = time.time()
     architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+    timer_arch_step.update(time.time() - start_time)
+  
     optimizer.zero_grad()
     architect.optimizer.zero_grad()
 
+    start_time = time.time()
     logits = model(input)
+    timer_model_forward.update(time.time() - start_time)
+  
     loss = criterion(logits, target)
 
+    start_time = time.time()
     loss.backward()
+    timer_model_backward.update(time.time() - start_time)
+  
     nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
     optimizer.step()
     optimizer.zero_grad()
@@ -211,8 +237,11 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
     if step % args.report_freq == 0:
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
-    if 'debug' in args.save and step >= 200:
+    if 'debug' in args.save and step >= 50:
       break
+
+  logging.info('train time: model_forward: %f, model_backward: %f, xtrain_to_cuda: %f, xval_to_cuda: %f, val_loader: %f, arch_step: %f',
+               timer_model_forward.avg, timer_model_backward.avg, timer_xtrain_to_cuda.avg, timer_xval_to_cuda.avg, timer_val_loader.avg, timer_arch_step.avg)
 
   return top1.avg, objs.avg
 
